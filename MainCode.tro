@@ -1,0 +1,389 @@
+Var 
+  Form1: TclForm;
+  PnlLogin, PnlSignUp, PnlDashboard, PnlAddProduct, PnlOutProduct, PnlListStock: TclPanel;
+  EdtLName, EdtLPass, EdtSName, EdtSPass: TclProEdit;
+  BtnDoLogin, BtnRegister, BtnGoToSignUp: TclProButton;
+  BtnGotoAddPage, BtnGotoOutPage, BtnGotoListPage: TclProButton;
+  BtnBackFromAdd, BtnBackFromOut, BtnBackFromList, BtnBackFromSignUp: TclProButton;
+  BtnLogoutDash: TclProButton;
+  BtnOutProduct, BtnSaveProduct: TclProButton;
+  EdtAddName, EdtAddPrice, EdtAddAmount: TclProEdit;
+  EdtOutName, EdtOutAmount, EdtSearch: TclProEdit;
+  Qry: TClSQLiteQuery;
+  i: integer;
+  lblLoginTitle, lblSignUpTitle, lblDashTitle: TclProLabel;
+  ListCounter: Integer;
+
+void RefreshStockList forward;
+
+// --- YENİ: STOKTAN TAMAMEN SİLME İŞLEMİ ---
+void DeleteProductClick;
+Var
+  ClickedBtn: TclProButton;
+  ProductName: String;
+{
+  // Hangi butona tıklandığını bul
+  ClickedBtn = TclProButton(Form1.clSender);
+  if (ClickedBtn == nil) Exit;
+  
+  // Butonun clTagStr özelliğine yüklediğimiz Ürün Adını al
+  ProductName = ClickedBtn.clTagStr;
+  
+  // SQLite'dan o kullanıcıya ait olan bu ürünü kalıcı olarak sil
+  Clomosy.DBSQLiteQuery.Sql.Text = 'DELETE FROM Stocks WHERE pName = ' + QuotedStr(ProductName) + ' AND pUser = ' + QuotedStr(EdtLName.Text);
+  Clomosy.DBSQLiteQuery.OpenOrExecute;
+  
+  ShowMessage('"' + ProductName + '" başarıyla silindi!');
+  
+  // Listeyi ekranda güncelle
+  RefreshStockList;
+}
+
+// --- STOK LİSTESİ YENİLEME ---
+void RefreshStockList;
+Var
+  stPnl, infoPnl: TclPanel;
+  stLblName, stLblDetail, lblTotal: TclProLabel;
+  sb: TclVertScrollBox;
+  totalValue: float;
+  sqlTxt: String;
+  tempComp: TclComponent;
+  stockAmt: Integer;
+  BtnDeleteStock: TclProButton;
+{
+  if (PnlListStock == nil) 
+  { 
+    PnlListStock = Form1.AddNewPanel(Form1, 'PnlListStock');
+    PnlListStock.Align = alClient;
+
+    EdtSearch = Form1.AddNewProEdit(PnlListStock, 'EdtSearch', 'Ürün Ara...');
+    EdtSearch.Align = alTop;
+    EdtSearch.Height = 45;
+    EdtSearch.Margins.Top = 10; EdtSearch.Margins.Left = 15; EdtSearch.Margins.Right = 15;
+    EdtSearch.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#FDFEFE');
+    EdtSearch.ClProSettings.RoundHeight = 10;
+    EdtSearch.SetclProSettings(EdtSearch.ClProSettings);
+    Form1.AddNewEvent(EdtSearch, tbeOnChange, 'RefreshStockList');
+    
+    BtnBackFromList = Form1.AddNewProButton(PnlListStock, 'BtnBl', 'GERİ DÖN'); 
+    BtnBackFromList.Align = alBottom; BtnBackFromList.Height = 50; 
+    BtnBackFromList.Margins.Bottom = 10; BtnBackFromList.Margins.Left = 30; BtnBackFromList.Margins.Right = 30;
+    BtnBackFromList.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#E74C3C');
+    BtnBackFromList.ClProSettings.FontColor = clAlphaColor.clHexToColor('#FFFFFF');
+    BtnBackFromList.ClProSettings.RoundHeight = 15; BtnBackFromList.SetclProSettings(BtnBackFromList.ClProSettings);
+    Form1.AddNewEvent(BtnBackFromList, tbeOnClick, 'ShowDashboard');
+  }
+  
+  PnlListStock.Visible = True;
+
+  tempComp = Form1.FindComponent('MainScrollBox');
+  if (tempComp <> nil) tempComp.Free;
+  
+  tempComp = Form1.FindComponent('BottomInfoPanel');
+  if (tempComp <> nil) tempComp.Free;
+
+  sb = Form1.AddNewVertScrollBox(PnlListStock, 'MainScrollBox');
+  sb.Align = alClient;
+
+  totalValue = 0;
+  sqlTxt = 'SELECT * FROM Stocks WHERE pUser = ' + QuotedStr(EdtLName.Text);
+  if (EdtSearch.Text <> '') { 
+    sqlTxt = sqlTxt + ' AND pName LIKE ' + QuotedStr('%' + EdtSearch.Text + '%'); 
+  }
+  sqlTxt = sqlTxt + ' ORDER BY pName ASC';
+
+  try
+    Qry = Clomosy.DBSQLiteQueryWith(sqlTxt);
+    Qry.OpenOrExecute;
+    Qry.First;
+    
+    while (not Qry.EOF)
+    {
+      stockAmt = Qry.FieldByName('pAmount').AsInteger;
+      totalValue = totalValue + (Qry.FieldByName('pPrice').AsFloat * stockAmt);
+      
+      stPnl = Form1.AddNewPanel(sb, '');
+      stPnl.Height = 85; stPnl.Align = alTop; 
+      stPnl.Margins.Top = 10; stPnl.Margins.Left = 15; stPnl.Margins.Right = 15;
+      stPnl.StyleLookup = 'pushpanel'; 
+
+
+      BtnDeleteStock = Form1.AddNewProButton(stPnl, 'BtnDel_' + Qry.FieldByName('pName').AsString, '🗑️');
+      BtnDeleteStock.Align = alRight; 
+      BtnDeleteStock.Width = 60; 
+      BtnDeleteStock.Margins.Top = 15; BtnDeleteStock.Margins.Bottom = 15; BtnDeleteStock.Margins.Right = 10;
+      BtnDeleteStock.clTagStr = Qry.FieldByName('pName').AsString; // Silinecek ürünün adını butona gizliyoruz
+      BtnDeleteStock.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#E74C3C');
+      BtnDeleteStock.ClProSettings.FontColor = clAlphaColor.clHexToColor('#FFFFFF');
+      BtnDeleteStock.ClProSettings.FontSize = 20;
+      BtnDeleteStock.ClProSettings.RoundHeight = 10; BtnDeleteStock.ClProSettings.RoundWidth = 10;
+      BtnDeleteStock.SetclProSettings(BtnDeleteStock.ClProSettings);
+      Form1.AddNewEvent(BtnDeleteStock, tbeOnClick, 'DeleteProductClick');
+
+      // Ürün İsmi
+      stLblName = Form1.AddNewProLabel(stPnl, '', Qry.FieldByName('pName').AsString);
+      stLblName.Align = alTop; stLblName.Margins.Left = 20; stLblName.Margins.Top = 10;
+      stLblName.Height = 30; 
+      stLblName.ClProSettings.FontSize = 18; 
+      stLblName.ClProSettings.FontColor = clAlphaColor.clHexToColor('#2C3E50');
+      stLblName.SetclProSettings(stLblName.ClProSettings);
+
+      // Ürün Detayı (Fiyat ve Miktar)
+      stLblDetail = Form1.AddNewProLabel(stPnl, '', 
+        '💰 ' + Qry.FieldByName('pPrice').AsString + ' TL | 📦 Stok: ' + IntToStr(stockAmt));
+      stLblDetail.Align = alClient; stLblDetail.Margins.Left = 20;
+      
+      if (stockAmt < 5) {
+        stLblDetail.ClProSettings.FontColor = clAlphaColor.clHexToColor('#E74C3C');
+        stLblDetail.Text = stLblDetail.Text + ' (KRİTİK!)';
+      } else {
+        stLblDetail.ClProSettings.FontColor = clAlphaColor.clHexToColor('#7F8C8D');
+      }
+      stLblDetail.SetclProSettings(stLblDetail.ClProSettings);
+
+      Qry.Next;
+    }
+
+    infoPnl = Form1.AddNewPanel(PnlListStock, 'BottomInfoPanel');
+    infoPnl.Align = alBottom; infoPnl.Height = 40;
+    infoPnl.Margins.Left = 15; infoPnl.Margins.Right = 15; infoPnl.Margins.Bottom = 5;
+    
+    lblTotal = Form1.AddNewProLabel(infoPnl, '', 'TOPLAM DEĞER: ' + FloatToStr(totalValue) + ' TL');
+    lblTotal.Align = alClient; 
+    lblTotal.ClProSettings.FontHorzAlign = palCenter;
+    lblTotal.ClProSettings.FontColor = clAlphaColor.clHexToColor('#27AE60');
+    lblTotal.SetclProSettings(lblTotal.ClProSettings);
+    
+  except
+    ShowMessage('Hata: ' + LastExceptionMessage);
+  }
+}
+
+// --- NAVİGASYON ---
+void ShowLogin; { 
+  PnlSignUp.Visible = False; PnlDashboard.Visible = False; PnlAddProduct.Visible = False; PnlOutProduct.Visible = False; 
+  PnlLogin.Visible = True; 
+}
+void ShowDashboard; { 
+  PnlLogin.Visible = False; PnlSignUp.Visible = False; PnlAddProduct.Visible = False; PnlOutProduct.Visible = False; 
+  if (PnlListStock <> nil) { PnlListStock.Visible = False; }
+  PnlDashboard.Visible = True; 
+}
+void ShowAddPage; { PnlDashboard.Visible = False; PnlAddProduct.Visible = True; }
+void ShowOutPage; { PnlDashboard.Visible = False; PnlOutProduct.Visible = True; }
+void ShowListPage; { PnlDashboard.Visible = False; RefreshStockList; }
+void ShowSignUp; { PnlLogin.Visible = False; PnlSignUp.Visible = True; }
+
+// --- ÜRÜN İŞLEMLERİ ---
+void AddNewProduct;
+Var
+  CheckQry: TClSQLiteQuery;
+  isUpdate: Boolean;
+{
+  if ((EdtAddName.Text <> '') && (EdtAddAmount.Text <> '')) {
+    try
+      // Ürün var mı kontrol et
+      CheckQry = Clomosy.DBSQLiteQueryWith('SELECT pAmount FROM Stocks WHERE pName = ' + QuotedStr(EdtAddName.Text) + ' AND pUser = ' + QuotedStr(EdtLName.Text));
+      CheckQry.OpenOrExecute;
+      
+      if (not CheckQry.Eof) {
+        // Ürün zaten var: Miktarı artır
+        Clomosy.DBSQLiteQuery.Sql.Text = 'UPDATE Stocks SET pAmount = pAmount + ' + EdtAddAmount.Text + 
+          ', pPrice = ' + EdtAddPrice.Text + 
+          ' WHERE pName = ' + QuotedStr(EdtAddName.Text) + ' AND pUser = ' + QuotedStr(EdtLName.Text);
+        isUpdate = True;
+      } else {
+        // Ürün hiç yok: Yeni kayıt aç
+        Clomosy.DBSQLiteQuery.Sql.Text = 'INSERT INTO Stocks (pName, pPrice, pAmount, pUser) VALUES (' + 
+          QuotedStr(EdtAddName.Text) + ', ' + EdtAddPrice.Text + ', ' + EdtAddAmount.Text + ', ' + QuotedStr(EdtLName.Text) + ')';
+        isUpdate = False;
+      }
+      
+      Clomosy.DBSQLiteQuery.OpenOrExecute;
+
+      // Mesajı özelleştirelim
+      if (isUpdate) {
+        ShowMessage(' Mevcut "' + EdtAddName.Text + '" stoğu artırıldı.');
+      } else {
+        ShowMessage(' Yeni ürün başarıyla kaydedildi.');
+      }
+
+      EdtAddName.Text = ''; EdtAddPrice.Text = ''; EdtAddAmount.Text = '';
+    except 
+      ShowMessage('Hata! Sayısal değerleri kontrol edin.'); 
+    }
+  } else ShowMessage('Lütfen ürün adı ve miktarını boş bırakmayın!');
+}
+void SubProduct;
+Var
+  newQty: Integer;
+{
+  if ((EdtOutName.Text <> '') && (EdtOutAmount.Text <> '')) {
+    Qry = Clomosy.DBSQLiteQueryWith('SELECT pAmount FROM Stocks WHERE pName = ' + QuotedStr(EdtOutName.Text) + ' AND pUser = ' + QuotedStr(EdtLName.Text));
+    Qry.OpenOrExecute;
+    if (not Qry.Eof) {
+      if (Qry.FieldByName('pAmount').AsInteger >= StrToInt(EdtOutAmount.Text)) {
+        newQty = Qry.FieldByName('pAmount').AsInteger - StrToInt(EdtOutAmount.Text);
+        
+        Clomosy.DBSQLiteQuery.Sql.Text = 'UPDATE Stocks SET pAmount = ' + IntToStr(newQty) + ' WHERE pName = ' + QuotedStr(EdtOutName.Text) + ' AND pUser = ' + QuotedStr(EdtLName.Text);
+        Clomosy.DBSQLiteQuery.OpenOrExecute;
+        
+        ShowMessage('Ürün çıkışı yapıldı!');
+        if (newQty < 5) {
+          ShowMessage('⚠️ UYARI: "' + EdtOutName.Text + '" stoğu kritik seviyeye (' + IntToStr(newQty) + ') düştü!');
+        }
+        
+        EdtOutName.Text = ''; EdtOutAmount.Text = '';
+      } else ShowMessage('Yetersiz stok!');
+    } else ShowMessage('Ürün bulunamadı!');
+  } else ShowMessage('Bilgileri doldurun!');
+}
+
+// --- AUTH & DATABASE ---
+void DoLogin; {
+  Clomosy.DBSQLiteQuery.Sql.Text = 'SELECT * FROM Users WHERE userName=' + QuotedStr(EdtLName.Text) + ' AND userPassword=' + QuotedStr(EdtLPass.Text);
+  Clomosy.DBSQLiteQuery.OpenOrExecute;
+  if (not Clomosy.DBSQLiteQuery.Eof) ShowDashboard; else ShowMessage('Hatalı Giriş!');
+}
+void DoRegister; {
+  Qry = Clomosy.DBSQLiteQueryWith('SELECT userName FROM Users WHERE userName=' + QuotedStr(EdtSName.Text));
+  Qry.OpenOrExecute;
+  if (not Qry.Eof) { ShowMessage('Kullanıcı adı alınmış!'); }
+  else {
+    Clomosy.DBSQLiteQuery.Sql.Text = 'INSERT INTO Users (userName, userPassword) VALUES (' + QuotedStr(EdtSName.Text) + ', ' + QuotedStr(EdtSPass.Text) + ')';
+    Clomosy.DBSQLiteQuery.OpenOrExecute;
+    ShowMessage('Kayıt Başarılı!'); ShowLogin;
+  }
+}
+void SetupDatabase; {
+  Clomosy.DBSQLiteConnect(Clomosy.AppFilesPath + 'ClomoStockV25.db3', '');
+  Clomosy.DBSQLiteQuery.Sql.Text = 'CREATE TABLE IF NOT EXISTS Users(userName TEXT, userPassword TEXT);';
+  Clomosy.DBSQLiteQuery.OpenOrExecute;
+  Clomosy.DBSQLiteQuery.Sql.Text = 'CREATE TABLE IF NOT EXISTS Stocks(pName TEXT, pPrice INTEGER, pAmount INTEGER, pUser TEXT);';
+  Clomosy.DBSQLiteQuery.OpenOrExecute;
+}
+
+// --- ANA KURULUM ---
+{
+  Form1 = TclForm.Create(Self);
+  SetupDatabase;
+  Form1.SetFormColor('#2C3E50', '#2C3E50', clGVertical);
+
+  PnlLogin = Form1.AddNewPanel(Form1, 'PnlLogin');
+  PnlSignUp = Form1.AddNewPanel(Form1, 'PnlSignUp');
+  PnlDashboard = Form1.AddNewPanel(Form1, 'PnlDashboard');
+  PnlAddProduct = Form1.AddNewPanel(Form1, 'PnlAddProduct');
+  PnlOutProduct = Form1.AddNewPanel(Form1, 'PnlOutProduct');
+  PnlListStock = nil;
+
+  // LOGIN ARAYÜZÜ
+  PnlLogin.Align = alCenter; PnlLogin.Width = 320; PnlLogin.Height = 480; PnlLogin.StyleLookup = 'pushpanel';
+  lblLoginTitle = Form1.AddNewProLabel(PnlLogin, 'lblLoginTitle', 'ClomoStock');
+  lblLoginTitle.Align = alMostTop; lblLoginTitle.Height = 80; lblLoginTitle.Margins.Top = 20;
+  lblLoginTitle.ClProSettings.FontSize = 40; 
+  lblLoginTitle.ClProSettings.FontHorzAlign = palCenter;
+  lblLoginTitle.SetclProSettings(lblLoginTitle.ClProSettings);
+
+  EdtLName = Form1.AddNewProEdit(PnlLogin, 'EdtLName', 'Kullanıcı Adı');
+  EdtLName.Align = alTop; EdtLName.Height = 45; EdtLName.Margins.Top = 15; EdtLName.Margins.Left = 30; EdtLName.Margins.Right = 30;
+  EdtLName.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#FDFEFE'); EdtLName.ClProSettings.RoundHeight = 10; EdtLName.SetclProSettings(EdtLName.ClProSettings);
+
+  EdtLPass = Form1.AddNewProEdit(PnlLogin, 'EdtLPass', 'Şifre');
+  EdtLPass.Align = alTop; EdtLPass.Height = 45; EdtLPass.Margins.Top = 15; EdtLPass.Margins.Left = 30; EdtLPass.Margins.Right = 30;
+  EdtLPass.Password = True; EdtLPass.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#FDFEFE'); EdtLPass.ClProSettings.RoundHeight = 10; EdtLPass.SetclProSettings(EdtLPass.ClProSettings);
+
+  BtnDoLogin = Form1.AddNewProButton(PnlLogin, 'BtnDoLogin', 'GİRİŞ YAP');
+  BtnDoLogin.Align = alTop; BtnDoLogin.Height = 60; BtnDoLogin.Margins.Top = 15; BtnDoLogin.Margins.Left = 40; BtnDoLogin.Margins.Right = 40;
+  BtnDoLogin.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#2C3E50'); BtnDoLogin.ClProSettings.FontColor = clAlphaColor.clHexToColor('#FFFFFF');
+  BtnDoLogin.ClProSettings.RoundHeight = 15; BtnDoLogin.SetclProSettings(BtnDoLogin.ClProSettings);
+  Form1.AddNewEvent(BtnDoLogin, tbeOnClick, 'DoLogin');
+
+  BtnGoToSignUp = Form1.AddNewProButton(PnlLogin, 'BtnGoToSignUp', 'YENİ HESAP OLUŞTUR');
+  BtnGoToSignUp.Align = alTop; BtnGoToSignUp.Height = 60; BtnGoToSignUp.Margins.Top = 15; BtnGoToSignUp.Margins.Left = 40; BtnGoToSignUp.Margins.Right = 40;
+  BtnGoToSignUp.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#34495E'); BtnGoToSignUp.ClProSettings.FontColor = clAlphaColor.clHexToColor('#FFFFFF');
+  BtnGoToSignUp.ClProSettings.RoundHeight = 15; BtnGoToSignUp.SetclProSettings(BtnGoToSignUp.ClProSettings);
+  Form1.AddNewEvent(BtnGoToSignUp, tbeOnClick, 'ShowSignUp');
+
+  // KAYIT PANELİ
+  PnlSignUp.Align = alCenter; PnlSignUp.Width = 320; PnlSignUp.Height = 480; PnlSignUp.StyleLookup = 'pushpanel'; PnlSignUp.Visible = False;
+  lblSignUpTitle = Form1.AddNewProLabel(PnlSignUp, 'lblSignUpTitle', 'KAYIT OL');
+  lblSignUpTitle.Align = alTop; lblSignUpTitle.Height = 60; 
+  lblSignUpTitle.ClProSettings.FontSize = 30; lblSignUpTitle.ClProSettings.FontHorzAlign = palCenter;
+  lblSignUpTitle.SetclProSettings(lblSignUpTitle.ClProSettings);
+
+  EdtSName = Form1.AddNewProEdit(PnlSignUp, 'EdtSName', 'Yeni Kullanıcı Adı');
+  EdtSName.Align = alTop; EdtSName.Height = 45; EdtSName.Margins.Top = 20; EdtSName.Margins.Left = 30; EdtSName.Margins.Right = 30;
+  EdtSName.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#FDFEFE'); EdtSName.ClProSettings.RoundHeight = 10; EdtSName.SetclProSettings(EdtSName.ClProSettings);
+
+  EdtSPass = Form1.AddNewProEdit(PnlSignUp, 'EdtSPass', 'Yeni Şifre');
+  EdtSPass.Align = alTop; EdtSPass.Height = 45; EdtSPass.Margins.Top = 15; EdtSPass.Margins.Left = 30; EdtSPass.Margins.Right = 30;
+  EdtSPass.Password = True; EdtSPass.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#FDFEFE'); EdtSPass.ClProSettings.RoundHeight = 10; EdtSPass.SetclProSettings(EdtSPass.ClProSettings);
+
+  BtnRegister = Form1.AddNewProButton(PnlSignUp, 'BtnRegister', 'Hesabı Tamamla');
+  BtnRegister.Align = alTop; BtnRegister.Margins.Top = 25; BtnRegister.Margins.Left = 30; BtnRegister.Height = 60; BtnRegister.Margins.Right = 30;
+  BtnRegister.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#2C3E50'); BtnRegister.ClProSettings.FontColor = clAlphaColor.clHexToColor('#FFFFFF');
+  BtnRegister.ClProSettings.RoundHeight = 40; BtnRegister.SetclProSettings(BtnRegister.ClProSettings);
+  Form1.AddNewEvent(BtnRegister, tbeOnClick, 'DoRegister');
+
+  BtnBackFromSignUp = Form1.AddNewProButton(PnlSignUp, 'BtnBackFromSignUp', 'Geri Dön');
+  BtnBackFromSignUp.Align = alTop; BtnBackFromSignUp.Margins.Top = 10; BtnBackFromSignUp.Margins.Left = 30; BtnBackFromSignUp.Margins.Right = 30; BtnBackFromSignUp.Height= 60;
+  BtnBackFromSignUp.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#E74C3C'); BtnBackFromSignUp.ClProSettings.FontColor = clAlphaColor.clHexToColor('#FFFFFF');
+  BtnBackFromSignUp.ClProSettings.RoundHeight = 40; BtnBackFromSignUp.SetclProSettings(BtnBackFromSignUp.ClProSettings);
+  Form1.AddNewEvent(BtnBackFromSignUp, tbeOnClick, 'ShowLogin');
+
+  // DASHBOARD
+  PnlDashboard.Align = alClient; PnlDashboard.Visible = False;
+  lblDashTitle = Form1.AddNewProLabel(PnlDashboard, 'lblDashTitle', 'YÖNETİM PANELİ');
+  lblDashTitle.Align = alTop; lblDashTitle.Height = 50; lblDashTitle.Margins.Top = 40; 
+  lblDashTitle.ClProSettings.FontSize = 22; 
+  lblDashTitle.ClProSettings.FontHorzAlign = palCenter;
+  lblDashTitle.SetclProSettings(lblDashTitle.ClProSettings);
+
+  BtnGotoAddPage = Form1.AddNewProButton(PnlDashboard, 'BtnA', '➕ ÜRÜN GİRİŞİ'); 
+  BtnGotoAddPage.Align = alTop; BtnGotoAddPage.Height = 90; BtnGotoAddPage.Margins.Top = 30; BtnGotoAddPage.Margins.Left = 30; BtnGotoAddPage.Margins.Right = 30;
+  BtnGotoAddPage.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#2C3E50'); BtnGotoAddPage.ClProSettings.FontColor = clAlphaColor.clHexToColor('#FFFFFF');
+  BtnGotoAddPage.ClProSettings.RoundHeight = 20; BtnGotoAddPage.SetclProSettings(BtnGotoAddPage.ClProSettings);
+  Form1.AddNewEvent(BtnGotoAddPage, tbeOnClick, 'ShowAddPage');
+
+  BtnGotoOutPage = Form1.AddNewProButton(PnlDashboard, 'BtnO', '➖ ÜRÜN ÇIKIŞI'); 
+  BtnGotoOutPage.Align = alTop; BtnGotoOutPage.Height = 90; BtnGotoOutPage.Margins.Top = 15; BtnGotoOutPage.Margins.Left = 30; BtnGotoOutPage.Margins.Right = 30;
+  BtnGotoOutPage.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#2C3E50'); BtnGotoOutPage.ClProSettings.FontColor = clAlphaColor.clHexToColor('#FFFFFF');
+  BtnGotoOutPage.ClProSettings.RoundHeight = 20; BtnGotoOutPage.SetclProSettings(BtnGotoOutPage.ClProSettings);
+  Form1.AddNewEvent(BtnGotoOutPage, tbeOnClick, 'ShowOutPage');
+
+  BtnGotoListPage = Form1.AddNewProButton(PnlDashboard, 'BtnL', '📊 STOK LİSTESİ'); 
+  BtnGotoListPage.Align = alTop; BtnGotoListPage.Height = 90; BtnGotoListPage.Margins.Top = 15; BtnGotoListPage.Margins.Left = 30; BtnGotoListPage.Margins.Right = 30;
+  BtnGotoListPage.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#2C3E50'); BtnGotoListPage.ClProSettings.FontColor = clAlphaColor.clHexToColor('#FFFFFF');
+  BtnGotoListPage.ClProSettings.RoundHeight = 20; BtnGotoListPage.SetclProSettings(BtnGotoListPage.ClProSettings);
+  Form1.AddNewEvent(BtnGotoListPage, tbeOnClick, 'ShowListPage');
+
+  BtnLogoutDash = Form1.AddNewProButton(PnlDashboard, 'BtnLd', 'OTURUMU KAPAT');
+  BtnLogoutDash.Align = alBottom; BtnLogoutDash.Height = 50; BtnLogoutDash.Margins.Bottom = 40; BtnLogoutDash.Margins.Left = 80; BtnLogoutDash.Margins.Right = 80;
+  BtnLogoutDash.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#C0392B'); BtnLogoutDash.ClProSettings.FontColor = clAlphaColor.clHexToColor('#FFFFFF');
+  BtnLogoutDash.ClProSettings.RoundHeight = 25; BtnLogoutDash.SetclProSettings(BtnLogoutDash.ClProSettings);
+  Form1.AddNewEvent(BtnLogoutDash, tbeOnClick, 'ShowLogin');
+
+  // ÜRÜN GİRİŞ / ÇIKIŞ
+  PnlAddProduct.Align = alClient; PnlAddProduct.Visible = False;
+  EdtAddName = Form1.AddNewProEdit(PnlAddProduct, 'EdtAN', 'Ürün Adı...'); EdtAddName.Align = alTop; EdtAddName.Height = 45; EdtAddName.Margins.Top = 50; EdtAddName.Margins.Left = 30; EdtAddName.Margins.Right = 30;
+  EdtAddPrice = Form1.AddNewProEdit(PnlAddProduct, 'EdtAP', 'Fiyat...'); EdtAddPrice.Align = alTop; EdtAddPrice.Height = 45; EdtAddPrice.Margins.Top = 15; EdtAddPrice.Margins.Left = 30; EdtAddPrice.Margins.Right = 30;
+  EdtAddAmount = Form1.AddNewProEdit(PnlAddProduct, 'EdtAA', 'Miktar...'); EdtAddAmount.Align = alTop; EdtAddAmount.Height = 45; EdtAddAmount.Margins.Top = 15; EdtAddAmount.Margins.Left = 30; EdtAddAmount.Margins.Right = 30;
+  BtnSaveProduct = Form1.AddNewProButton(PnlAddProduct, 'BtnSv', 'KAYDET'); BtnSaveProduct.Align = alTop; BtnSaveProduct.Height = 50; BtnSaveProduct.Margins.Top = 20; BtnSaveProduct.Margins.Left = 30; BtnSaveProduct.Margins.Right = 30;
+  BtnSaveProduct.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#2C3E50'); BtnSaveProduct.ClProSettings.FontColor = clAlphaColor.clHexToColor('#FFFFFF'); BtnSaveProduct.SetclProSettings(BtnSaveProduct.ClProSettings);
+  Form1.AddNewEvent(BtnSaveProduct, tbeOnClick, 'AddNewProduct');
+  BtnBackFromAdd = Form1.AddNewProButton(PnlAddProduct, 'BtnBa', 'GERİ DÖN'); BtnBackFromAdd.Align = alTop; BtnBackFromAdd.Height = 50; BtnBackFromAdd.Margins.Top = 15; BtnBackFromAdd.Margins.Left = 30; BtnBackFromAdd.Margins.Right = 30;
+  BtnBackFromAdd.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#C0392B'); BtnBackFromAdd.ClProSettings.FontColor = clAlphaColor.clHexToColor('#FFFFFF'); BtnBackFromAdd.SetclProSettings(BtnBackFromAdd.ClProSettings);
+  Form1.AddNewEvent(BtnBackFromAdd, tbeOnClick, 'ShowDashboard');
+
+  PnlOutProduct.Align = alClient; PnlOutProduct.Visible = False;
+  EdtOutName = Form1.AddNewProEdit(PnlOutProduct, 'EdtON', 'Ürün Adı...'); EdtOutName.Align = alTop; EdtOutName.Height = 45; EdtOutName.Margins.Top = 50; EdtOutName.Margins.Left = 30; EdtOutName.Margins.Right = 30;
+  EdtOutAmount = Form1.AddNewProEdit(PnlOutProduct, 'EdtOA', 'Miktar...'); EdtOutAmount.Align = alTop; EdtOutAmount.Height = 45; EdtOutAmount.Margins.Top = 15; EdtOutAmount.Margins.Left = 30; EdtOutAmount.Margins.Right = 30;
+  BtnOutProduct = Form1.AddNewProButton(PnlOutProduct, 'BtnOp', 'STOKTAN DÜŞ'); BtnOutProduct.Align = alTop; BtnOutProduct.Height = 50; BtnOutProduct.Margins.Top = 20; BtnOutProduct.Margins.Left = 30; BtnOutProduct.Margins.Right = 30;
+  BtnOutProduct.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#E74C3C'); BtnOutProduct.ClProSettings.FontColor = clAlphaColor.clHexToColor('#FFFFFF'); BtnOutProduct.SetclProSettings(BtnOutProduct.ClProSettings);
+  Form1.AddNewEvent(BtnOutProduct, tbeOnClick, 'SubProduct');
+  BtnBackFromOut = Form1.AddNewProButton(PnlOutProduct, 'BtnBo', 'GERİ DÖN'); BtnBackFromOut.Align = alTop; BtnBackFromOut.Height = 50; BtnBackFromOut.Margins.Top = 15; BtnBackFromOut.Margins.Left = 30; BtnBackFromOut.Margins.Right = 30;
+  BtnBackFromOut.ClProSettings.BackgroundColor = clAlphaColor.clHexToColor('#E74C3C'); BtnBackFromOut.ClProSettings.FontColor = clAlphaColor.clHexToColor('#FFFFFF'); BtnBackFromOut.SetclProSettings(BtnBackFromOut.ClProSettings);
+  Form1.AddNewEvent(BtnBackFromOut, tbeOnClick, 'ShowDashboard');
+
+  Form1.Run;
+}
