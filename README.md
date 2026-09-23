@@ -1,4 +1,4 @@
-Bu proje, işletmelerin ürün envanterlerini mobil bir arayüz üzerinden kolayca ve dinamik olarak yönetebilmesi için geliştirilmiş bir Mobil Stok Takip Sistemi yazılımıdır. 
+Bu proje , clomosy dili kullanılarak işletmelerin ürün envanterlerini mobil bir arayüz üzerinden kolayca ve dinamik olarak yönetebilmesi için geliştirilmiş bir Mobil Stok Takip Sistemi yazılımıdır. 
 Sistem; kullanıcı dostu, sade ve modern bir yönetim paneline sahiptir.
 Ürün Girişi, Ürün Çıkışı ve Stok Listesi menülerine hızlı erişim sağlar.
 Stok Listesi Ekranı tüm ürünlerin fiyatını, anlık stok adetlerini ve toplam envanter değerini gösterir. Stok seviyesi kritik seviyeye düşen ürünler için otomatik uyarı verir.
